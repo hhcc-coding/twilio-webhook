@@ -1,0 +1,33 @@
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment variables
+.env
+*.env
+
+# Logs
+logs
+*.log
+*.log.*
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Railway / deployment cache
+dist/
+.cache/
+
+# Dialogflow & Google credentials
+credentials/
+*.json
+
+# IDE / Editor settings
+.vscode/
+.idea/
