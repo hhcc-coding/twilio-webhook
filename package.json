@@ -1,0 +1,28 @@
+{
+  "name": "twilio-webhook",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "test": "echo \"Error: no Test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google-cloud/dialogflow": "^7.2.0",
+    "body-parser": "^2.2.0",
+    "dialogflow": "^1.2.0",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "google-auth-library": "^10.3.0",
+    "googleapis": "^159.0.0",
+    "node-fetch": "^3.3.2",
+    "twilio": "^5.9.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

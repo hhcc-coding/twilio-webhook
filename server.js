@@ -8,7 +8,7 @@ import { google } from "googleapis";
 import dotenv from "dotenv";
 dotenv.config();
 
-console.log(process.env.NGROK_URL);
+//console.log(process.env.NGROK_URL);
 
 async function getDialogflowToken() {
   const auth = new GoogleAuth({
@@ -30,7 +30,7 @@ async function createCalendarEvent({ name, phone, date, time, address }) {
   const client = await auth.getClient();
   const calendar = google.calendar({ version: "v3", auth: client });
 
-  console.log("🗓️ Creating event with:", { name, phone, date, time, address });
+  //console.log("🗓️ Creating event with:", { name, phone, date, time, address });
 
   const datePart = date.split("T")[0];
   const timePart = time.split("T")[1];
@@ -59,7 +59,7 @@ async function createCalendarEvent({ name, phone, date, time, address }) {
     resource: event,
   });
 
-  console.log("📅 Event created:", response.data.htmlLink);
+  //console.log("📅 Event created:", response.data.htmlLink);
   return response.data;
 }
 
@@ -129,7 +129,7 @@ app.post("/process_speech", async (req, res) => {
   }
 
   const token = await getDialogflowToken();
-  console.log("🔊 Caller said:", userSpeech);
+  //console.log("🔊 Caller said:", userSpeech);
 
   let botReply = "Sorry, I had trouble understanding you.";
 
@@ -151,7 +151,7 @@ app.post("/process_speech", async (req, res) => {
     );
 
     const result = await dialogflowResponse.json();
-    console.log("🤖 Dialogflow raw response:", result);
+    //console.log("🤖 Dialogflow raw response:", result);
 
     const queryResult = result.queryResult || {};
     botReply = queryResult.fulfillmentText || botReply;
