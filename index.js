@@ -8,7 +8,7 @@ import { google } from "googleapis";
 import dotenv from "dotenv";
 dotenv.config();
 
-//console.log(process.env.NGROK_URL);
+//console.log(process.env.HOME_URL);
 
 async function getDialogflowToken() {
   const auth = new GoogleAuth({
@@ -88,7 +88,7 @@ app.post("/voice", (req, res) => {
   const gather = twimlResponse.gather({
     input: "speech dtmf",
     numDigits: 1,
-    action: `${process.env.NGROK_URL}/process_speech`,
+    action: `${process.env.HOME_URL}/process_speech`,
     speechTimeout: "auto",
     timeout: 5,
   });
@@ -123,7 +123,7 @@ app.post("/process_speech", async (req, res) => {
   // 🔸 Check if user pressed 0 to talk to agent
   if (dtmf === "0") {
     const twimlResponse = new twiml.VoiceResponse();
-    twimlResponse.redirect(`${process.env.NGROK_URL}/connect_to_agent`);
+    twimlResponse.redirect(`${process.env.HOME_URL}/connect_to_agent`);
     res.type("text/xml");
     return res.send(twimlResponse.toString());
   }
@@ -208,7 +208,7 @@ app.post("/process_speech", async (req, res) => {
   twimlResponse.gather({
     input: "speech dtmf",
     numDigits: 1,
-    action: `${process.env.NGROK_URL}/process_speech`,
+    action: `${process.env.HOME_URL}/process_speech`,
     speechTimeout: "auto",
     timeout: 5,
   });
