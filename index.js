@@ -10,11 +10,16 @@ dotenv.config();
 
 //console.log(process.env.HOME_URL);
 
+
+// ✅ Dialogflow helper
 async function getDialogflowToken() {
+  const dialogflowKey = JSON.parse(process.env.DIALOGFLOW_KEY); // read from env var
+
   const auth = new GoogleAuth({
-    keyFile: "credentials/dialogflow-key.json",
-    scopes: ["https://www.googleapis.com/auth/dialogflow"]
+    credentials: dialogflowKey,
+    scopes: ["https://www.googleapis.com/auth/dialogflow"],
   });
+
   const client = await auth.getClient();
   const tokenResponse = await client.getAccessToken();
   return tokenResponse.token;
@@ -22,8 +27,10 @@ async function getDialogflowToken() {
 
 // ✅ Calendar helper
 async function createCalendarEvent({ name, phone, date, time, address }) {
+  const dialogflowKey = JSON.parse(process.env.DIALOGFLOW_KEY); // read from env var
+
   const auth = new GoogleAuth({
-    keyFile: "credentials/dialogflow-key.json",
+    credentials: dialogflowKey,
     scopes: ["https://www.googleapis.com/auth/calendar"],
   });
 
@@ -171,7 +178,7 @@ app.post("/process_speech", async (req, res) => {
       if (name) {
         sessions[caller].name = name;
         botReply = `Thanks ${name}. Can you tell me the date, time, and address for your cleaning appointment? ` +
-                   `Or press 0 to speak to a live agent.`;
+          `Or press 0 to speak to a live agent.`;
       }
     }
 
