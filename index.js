@@ -1,4 +1,4 @@
-// server.js
+// index.js
 import express from "express";
 import bodyParser from "body-parser";
 import pkg from "twilio";
@@ -8,36 +8,34 @@ import { google } from "googleapis";
 import dotenv from "dotenv";
 dotenv.config();
 
-//console.log(process.env.HOME_URL);
+const { twiml } = pkg;
+const app = express();
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
+const sessions = {}; // In-memory sessions
 
 // ✅ Dialogflow helper
 async function getDialogflowToken() {
-  const dialogflowKey = JSON.parse(process.env.DIALOGFLOW_KEY); // read from env var
-
+  const dialogflowKey = JSON.parse(process.env.DIALOGFLOW_KEY);
   const auth = new GoogleAuth({
     credentials: dialogflowKey,
     scopes: ["https://www.googleapis.com/auth/dialogflow"],
   });
-
   const client = await auth.getClient();
   const tokenResponse = await client.getAccessToken();
   return tokenResponse.token;
 }
 
 // ✅ Calendar helper
-async function createCalendarEvent({ name, phone, date, time, address }) {
-  const dialogflowKey = JSON.parse(process.env.DIALOGFLOW_KEY); // read from env var
-
+async function createCalendarEvent({ name, phone, date, time, address, service }) {
+  const dialogflowKey = JSON.parse(process.env.DIALOGFLOW_KEY);
   const auth = new GoogleAuth({
     credentials: dialogflowKey,
     scopes: ["https://www.googleapis.com/auth/calendar"],
   });
-
   const client = await auth.getClient();
   const calendar = google.calendar({ version: "v3", auth: client });
-
-  //console.log("🗓️ Creating event with:", { name, phone, date, time, address });
 
   const datePart = date.split("T")[0];
   const timePart = time.split("T")[1];
@@ -46,173 +44,77 @@ async function createCalendarEvent({ name, phone, date, time, address }) {
   endTime.setHours(endTime.getHours() + 1);
 
   const event = {
-    summary: "Cleaning Appointment",
+    summary: `${service || "Cleaning"} Appointment`,
     description: `Booked via phone bot.
+    Service: ${service}
     Name: ${name || "Unknown"}
     Phone: ${phone || "Unknown"}
     Address: ${address || "Not provided"}`,
-    start: {
-      dateTime: startTime,
-      timeZone: "America/New_York",
-    },
-    end: {
-      dateTime: endTime.toISOString(),
-      timeZone: "America/New_York",
-    },
+    start: { dateTime: startTime, timeZone: "America/New_York" },
+    end: { dateTime: endTime.toISOString(), timeZone: "America/New_York" },
   };
 
   const response = await calendar.events.insert({
     calendarId: "hiltonheadcleaningco@gmail.com",
     resource: event,
   });
-
-  //console.log("📅 Event created:", response.data.htmlLink);
   return response.data;
 }
 
-const { twiml } = pkg;
-const app = express();
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-
-// in-memory session store
-const sessions = {};
-
 // 🔹 Root
-app.get("/", (req, res) => {
-  res.send("Twilio Dialogflow Bot is running ✅");
-});
+app.get("/", (req, res) => res.send("Twilio Dialogflow Bot is running ✅"));
 
-// 🔹 Incoming calls
+// 🔹 Incoming call → Service Menu
 app.post("/voice", (req, res) => {
   const caller = req.body.From;
   if (!sessions[caller]) {
-    sessions[caller] = { name: null, phone: caller, date: null, time: null, address: null };
+    sessions[caller] = { phone: caller, name: null, service: null, date: null, time: null, address: null };
   }
 
-  const twimlResponse = new twiml.VoiceResponse();
-
-  const gather = twimlResponse.gather({
-    input: "speech dtmf",
+  const response = new twiml.VoiceResponse();
+  const gather = response.gather({
+    input: "dtmf speech",
     numDigits: 1,
-    action: `${process.env.HOME_URL}/process_speech`,
+    action: `${process.env.HOME_URL}/select_service`,
     speechTimeout: "auto",
     timeout: 5,
   });
 
   gather.say(
-    "Hello! Welcome to Hilton Head Cleaning Company. How can we help you today? " +
-    "For booking a cleaning appointment, just say your first name. " +
+    "Welcome to Hilton Head Cleaning Company. " +
+    "Press 1 for Airbnb cleaning, 2 for handyman services, 3 for residential cleaning, or 4 for commercial cleaning. " +
     "Or press 0 anytime to speak to a live agent."
   );
 
   res.type("text/xml");
-  res.send(twimlResponse.toString());
+  res.send(response.toString());
 });
 
-// 🔹 IRL assistant transfer
-app.post("/connect_to_agent", (req, res) => {
-  const twimlResponse = new twiml.VoiceResponse();
-  twimlResponse.say("Connecting you to a live assistant. Please hold.");
-  twimlResponse.dial(process.env.AGENT_PHONE_NUMBER || "+15555555555"); // Set this number in .env
-  res.type("text/xml");
-  res.send(twimlResponse.toString());
-});
-
-// 🔹 Handle speech or DTMF input
-app.post("/process_speech", async (req, res) => {
-  const userSpeech = req.body.SpeechResult || "";
-  const dtmf = req.body.Digits || "";
+// 🔹 Handle service selection
+app.post("/select_service", (req, res) => {
   const caller = req.body.From;
+  const dtmf = req.body.Digits || "";
+  const session = sessions[caller];
 
-  if (!sessions[caller]) sessions[caller] = { phone: caller };
-
-  // 🔸 Check if user pressed 0 to talk to agent
-  if (dtmf === "0") {
-    const twimlResponse = new twiml.VoiceResponse();
-    twimlResponse.redirect(`${process.env.HOME_URL}/connect_to_agent`);
-    res.type("text/xml");
-    return res.send(twimlResponse.toString());
-  }
-
-  const token = await getDialogflowToken();
-  //console.log("🔊 Caller said:", userSpeech);
-
-  let botReply = "Sorry, I had trouble understanding you.";
-
-  try {
-    const dialogflowResponse = await fetch(
-      "https://dialogflow.googleapis.com/v2/projects/cleaning-service-bot/agent/sessions/12345:detectIntent",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          queryInput: {
-            text: { text: userSpeech, languageCode: "en-US" }
-          }
-        })
-      }
-    );
-
-    const result = await dialogflowResponse.json();
-    //console.log("🤖 Dialogflow raw response:", result);
-
-    const queryResult = result.queryResult || {};
-    botReply = queryResult.fulfillmentText || botReply;
-
-    // ✅ Closure
-    if (queryResult.intent?.displayName === "Closure") {
-      const twimlResponse = new twiml.VoiceResponse();
-      twimlResponse.say("Thank you for calling Hilton Head Cleaning Company, goodbye!");
-      twimlResponse.hangup();
+  let service = null;
+  switch (dtmf) {
+    case "1": service = "Airbnb"; break;
+    case "2": service = "Handyman"; break;
+    case "3": service = "Residential"; break;
+    case "4": service = "Commercial"; break;
+    case "0":
+      const agentResponse = new twiml.VoiceResponse();
+      agentResponse.redirect(`${process.env.HOME_URL}/connect_to_agent`);
       res.type("text/xml");
-      return res.send(twimlResponse.toString());
-    }
-
-    // ✅ Capture name
-    if (queryResult.intent?.displayName === "GetName") {
-      const name = queryResult.parameters?.name;
-      if (name) {
-        sessions[caller].name = name;
-        botReply = `Thanks ${name}. Can you tell me the date, time, and address for your cleaning appointment? ` +
-          `Or press 0 to speak to a live agent.`;
-      }
-    }
-
-    // ✅ Booking
-    if (queryResult.intent?.displayName === "BookCleaning") {
-      const params = queryResult.parameters || {};
-      sessions[caller].date = params.date || null;
-      sessions[caller].time = params.time || null;
-      sessions[caller].address = params.address || "No address provided";
-
-      const { name, phone, date, time, address } = sessions[caller];
-
-      if (date && time && address && name) {
-        try {
-          await createCalendarEvent({ name, phone, date, time, address });
-
-          botReply = `Perfect ${name}. Your booking info was saved. Expect a call soon for confirmation.`;
-        } catch (err) {
-          console.error("❌ Error creating calendar event:", err);
-          botReply = "I got your booking details but couldn’t save it to the calendar.";
-        }
-      } else {
-        botReply = "I still need some details. Please provide the date, time, and address for your cleaning.";
-      }
-    }
-
-  } catch (err) {
-    console.error("❌ Error talking to Dialogflow:", err);
+      return res.send(agentResponse.toString());
   }
 
-  // 🔹 Default flow
-  const twimlResponse = new twiml.VoiceResponse();
-  twimlResponse.say(botReply);
-  twimlResponse.gather({
+  if (service) {
+    session.service = service;
+  }
+
+  const response = new twiml.VoiceResponse();
+  const gather = response.gather({
     input: "speech dtmf",
     numDigits: 1,
     action: `${process.env.HOME_URL}/process_speech`,
@@ -220,8 +122,114 @@ app.post("/process_speech", async (req, res) => {
     timeout: 5,
   });
 
+  if (service) {
+    gather.say(`Great, you selected ${service} cleaning. Can I have your first name please?`);
+  } else {
+    gather.say("Sorry, I didn’t understand your choice. Please press 1 for Airbnb, 2 for handyman, 3 for residential, or 4 for commercial cleaning.");
+  }
+
   res.type("text/xml");
-  res.send(twimlResponse.toString());
+  res.send(response.toString());
+});
+
+// 🔹 Connect to live agent
+app.post("/connect_to_agent", (req, res) => {
+  const response = new twiml.VoiceResponse();
+  response.say("Connecting you to a live assistant. Please hold.");
+  response.dial(process.env.AGENT_PHONE_NUMBER || "+15555555555");
+  res.type("text/xml");
+  res.send(response.toString());
+});
+
+// 🔹 Process name/date/time/address via Dialogflow
+app.post("/process_speech", async (req, res) => {
+  const userSpeech = req.body.SpeechResult || "";
+  const dtmf = req.body.Digits || "";
+  const caller = req.body.From;
+  const session = sessions[caller] || (sessions[caller] = { phone: caller });
+
+  // Agent override
+  if (dtmf === "0") {
+    const response = new twiml.VoiceResponse();
+    response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
+    res.type("text/xml");
+    return res.send(response.toString());
+  }
+
+  // Silence → agent
+  if (!userSpeech.trim()) {
+    const response = new twiml.VoiceResponse();
+    response.say("I'm having trouble understanding you. Let me connect you to a live agent.");
+    response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
+    res.type("text/xml");
+    return res.send(response.toString());
+  }
+
+  let botReply = "Sorry, I didn’t catch that.";
+  try {
+    const token = await getDialogflowToken();
+    const dialogflowResponse = await fetch(
+      "https://dialogflow.googleapis.com/v2/projects/cleaning-service-bot/agent/sessions/12345:detectIntent",
+      {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          queryInput: { text: { text: userSpeech, languageCode: "en-US" } },
+        }),
+      }
+    );
+
+    const result = await dialogflowResponse.json();
+    const queryResult = result.queryResult || {};
+    botReply = queryResult.fulfillmentText || botReply;
+
+    switch (queryResult.intent?.displayName) {
+      case "GetName":
+        session.name = queryResult.parameters?.name;
+        botReply = `Thanks ${session.name}. What date, time, and address should we book for your ${session.service} cleaning?`;
+        break;
+
+      case "BookCleaning":
+        const params = queryResult.parameters || {};
+        session.date = params.date || null;
+        session.time = params.time || null;
+        session.address = params.address || null;
+
+        if (session.name && session.date && session.time && session.address && session.service) {
+          try {
+            await createCalendarEvent(session);
+            botReply = `Perfect ${session.name}, your ${session.service} booking has been saved. We’ll call you soon to confirm.`;
+          } catch {
+            botReply = "I got your details but couldn’t save it to the calendar.";
+          }
+        } else {
+          botReply = "I still need the date, time, and address. Could you provide those?";
+        }
+        break;
+
+      case "Closure":
+        const closureResponse = new twiml.VoiceResponse();
+        closureResponse.say("Thank you for calling Hilton Head Cleaning Company. Goodbye!");
+        closureResponse.hangup();
+        res.type("text/xml");
+        return res.send(closureResponse.toString());
+    }
+  } catch (err) {
+    console.error("❌ Dialogflow error:", err);
+  }
+
+  // Default reply
+  const response = new twiml.VoiceResponse();
+  response.say(botReply);
+  response.gather({
+    input: "speech dtmf",
+    numDigits: 1,
+    action: `${process.env.HOME_URL}/process_speech`,
+    speechTimeout: "auto",
+    timeout: 5,
+  });
+  res.type("text/xml");
+  res.send(response.toString());
 });
 
 const PORT = process.env.PORT || 3000;
