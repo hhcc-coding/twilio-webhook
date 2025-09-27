@@ -86,6 +86,10 @@ app.post("/voice", (req, res) => {
     "Or press 0 anytime to speak to a live agent."
   );
 
+  // 🔹 Fallback if no input detected
+  response.say("I didn’t hear anything. Let me repeat...");
+  response.redirect(`${process.env.HOME_URL}/voice`);
+
   res.type("text/xml");
   res.send(response.toString());
 });
