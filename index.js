@@ -152,6 +152,9 @@ app.post("/process_speech", async (req, res) => {
   const caller = req.body.From;
   const session = sessions[caller] || (sessions[caller] = { phone: caller });
 
+  // Track how many retries this caller has had
+  session.retries = session.retries || 0;
+
   // Agent override
   if (dtmf === "0") {
     const response = new twiml.VoiceResponse();
@@ -160,13 +163,30 @@ app.post("/process_speech", async (req, res) => {
     return res.send(response.toString());
   }
 
-  // Silence → agent
+  // Silence handling
   if (!userSpeech.trim()) {
-    const response = new twiml.VoiceResponse();
-    response.say("I'm having trouble understanding you. Let me connect you to a live agent.");
-    response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
-    res.type("text/xml");
-    return res.send(response.toString());
+    if (session.retries >= 1) {
+      // After first retry → send to agent
+      const response = new twiml.VoiceResponse();
+      response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
+      response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
+      res.type("text/xml");
+      return res.send(response.toString());
+    } else {
+      // First time → retry the gather
+      session.retries++;
+      const response = new twiml.VoiceResponse();
+      response.say("I didn’t hear you. Could you please repeat that?");
+      response.gather({
+        input: "speech dtmf",
+        numDigits: 1,
+        action: `${process.env.HOME_URL}/process_speech`,
+        speechTimeout: "auto",
+        timeout: 6,
+      });
+      res.type("text/xml");
+      return res.send(response.toString());
+    }
   }
 
   let botReply = "Sorry, I didn’t catch that.";
@@ -176,7 +196,10 @@ app.post("/process_speech", async (req, res) => {
       "https://dialogflow.googleapis.com/v2/projects/cleaning-service-bot/agent/sessions/12345:detectIntent",
       {
         method: "POST",
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
           queryInput: { text: { text: userSpeech, languageCode: "en-US" } },
         }),
@@ -222,7 +245,10 @@ app.post("/process_speech", async (req, res) => {
     console.error("❌ Dialogflow error:", err);
   }
 
-  // Default reply
+  // Reset retries on valid input
+  session.retries = 0;
+
+  // Default reply + gather again
   const response = new twiml.VoiceResponse();
   response.say(botReply);
   response.gather({
@@ -230,11 +256,12 @@ app.post("/process_speech", async (req, res) => {
     numDigits: 1,
     action: `${process.env.HOME_URL}/process_speech`,
     speechTimeout: "auto",
-    timeout: 5,
+    timeout: 6,
   });
   res.type("text/xml");
   res.send(response.toString());
 });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
