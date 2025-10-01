@@ -265,7 +265,7 @@ app.post("/process_speech", async (req, res) => {
 // Handle SIP Domain INVITES (outbound from Zoiper/Bria)
 app.post('/sip-calls', (req, res) => {
   const dialedNumber = req.body.To; // Zoiper dialed number
-  const response = new VoiceResponse();
+  const response = new twiml.VoiceResponse();
 
   // Ensure the number is in E.164 format (+1XXXXXXXXXX)
   response.dial({ callerId: '+18436040666' }, dialedNumber);
