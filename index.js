@@ -262,6 +262,18 @@ app.post("/process_speech", async (req, res) => {
   res.send(response.toString());
 });
 
+// Handle SIP Domain INVITES (outbound from Zoiper/Bria)
+app.post('/sip-calls', (req, res) => {
+  const dialedNumber = req.body.To; // Zoiper dialed number
+  const response = new VoiceResponse();
+
+  // Ensure the number is in E.164 format (+1XXXXXXXXXX)
+  response.dial({ callerId: '+18436040666' }, dialedNumber);
+
+  res.type('text/xml');
+  res.send(response.toString());
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
