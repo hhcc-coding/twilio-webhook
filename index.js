@@ -265,7 +265,7 @@ app.post("/process_speech", async (req, res) => {
 // Handle SIP Domain INVITES (outbound from Zoiper/Bria)
 app.post('/sip-calls', (req, res) => {
   let dialedNumber = req.body.To;
-  console.log(dialedNumber)
+  // console.log(dialedNumber)
 
   // Force into E.164 if user dials without +1
   if (dialedNumber && !dialedNumber.startsWith('+')) {
