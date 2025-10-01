@@ -264,15 +264,21 @@ app.post("/process_speech", async (req, res) => {
 
 // Handle SIP Domain INVITES (outbound from Zoiper/Bria)
 app.post('/sip-calls', (req, res) => {
-  const dialedNumber = req.body.To; // Zoiper dialed number
-  const response = new twiml.VoiceResponse();
+  let dialedNumber = req.body.To;
+  console.log(dialedNumber)
 
-  // Ensure the number is in E.164 format (+1XXXXXXXXXX)
+  // Force into E.164 if user dials without +1
+  if (dialedNumber && !dialedNumber.startsWith('+')) {
+    dialedNumber = '+1' + dialedNumber.replace(/\D/g, '');
+  }
+
+  const response = new twiml.VoiceResponse();
   response.dial({ callerId: '+18436040666' }, dialedNumber);
 
   res.type('text/xml');
   res.send(response.toString());
 });
+
 
 
 const PORT = process.env.PORT || 3000;
