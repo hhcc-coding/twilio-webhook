@@ -140,16 +140,7 @@ app.post("/select_service", (req, res) => {
 app.post("/receive_otp", (req, res) => {
   const response = new twiml.VoiceResponse();
 
-  // 🔹 Replace this with your real phone number (in E.164 format)
-  const myPersonalNumber = "+18433045481";
-
-  // Dial your personal number so the call forwards to you
-  const dial = response.dial({
-    callerId: req.body.From || "+1XXXXXXXXXX", // optional: keep caller info or set your own Twilio number
-    timeout: 20
-  });
-
-  dial.number(myPersonalNumber);
+  response.dial("+18433045481" || "+15555555555");
 
   // Send TwiML response back to Twilio
   res.type("text/xml");
