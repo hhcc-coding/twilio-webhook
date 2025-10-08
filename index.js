@@ -136,6 +136,26 @@ app.post("/select_service", (req, res) => {
   res.send(response.toString());
 });
 
+// route for receiving OTPs
+app.post("/receive_otp", (req, res) => {
+  const response = new twiml.VoiceResponse();
+
+  // 🔹 Replace this with your real phone number (in E.164 format)
+  const myPersonalNumber = "+18433045481";
+
+  // Dial your personal number so the call forwards to you
+  const dial = response.dial({
+    callerId: req.body.From || "+1XXXXXXXXXX", // optional: keep caller info or set your own Twilio number
+    timeout: 20
+  });
+
+  dial.number(myPersonalNumber);
+
+  // Send TwiML response back to Twilio
+  res.type("text/xml");
+  res.send(twiml.toString());
+});
+
 // 🔹 Connect to live agent
 app.post("/connect_to_agent", (req, res) => {
   const response = new twiml.VoiceResponse();
