@@ -132,11 +132,14 @@ app.post("/select_service", (req, res) => {
     gather.say("Sorry, I didn’t understand your choice. Please press 1 for Airbnb, 2 for handyman, 3 for residential, or 4 for commercial cleaning.");
   }
 
+  // fallback for no response
+  response.redirect(`${process.env.HOME_URL}/select_service`);
+
   res.type("text/xml");
   res.send(response.toString());
 });
 
-// route for receiving OTPs
+// Test - route for receiving OTPs
 app.post("/receive_otp", (req, res) => {
   const response = new twiml.VoiceResponse();
 
@@ -176,7 +179,7 @@ app.post("/process_speech", async (req, res) => {
 
   // Silence handling
   if (!userSpeech.trim()) {
-    if (session.retries >= 1) {
+    if (session.retries >= 2) {
       // After first retry → send to agent
       const response = new twiml.VoiceResponse();
       response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
