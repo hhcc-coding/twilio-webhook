@@ -14,6 +14,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 const sessions = {}; // In-memory sessions
+const inputTries = 0;
 
 // ✅ Dialogflow helper
 async function getDialogflowToken() {
@@ -87,7 +88,7 @@ app.post("/voice", (req, res) => {
   );
 
   // 🔹 Fallback if no input detected
-  response.say("I didn’t hear anything. Let me repeat...");
+  response.say("I didn’t get any input. Let me repeat...");
   response.redirect(`${process.env.HOME_URL}/voice`);
 
   res.type("text/xml");
@@ -99,6 +100,7 @@ app.post("/select_service", (req, res) => {
   const caller = req.body.From;
   const dtmf = req.body.Digits || "";
   const session = sessions[caller];
+
 
   let service = null;
   switch (dtmf) {
@@ -129,11 +131,19 @@ app.post("/select_service", (req, res) => {
   if (service) {
     gather.say(`Great, you selected ${service} cleaning. Can I have your first name please?`);
   } else {
-    gather.say("Sorry, I didn’t understand your choice. Please press 1 for Airbnb, 2 for handyman, 3 for residential, or 4 for commercial cleaning.");
+    gather.say("Sorry, I didn’t get it, can you please say it again?");
+    inputTries++;
   }
 
   // fallback for no response
-  response.redirect(`${process.env.HOME_URL}/select_service`);
+  if (inputTries <= 3) {
+    response.redirect(`${process.env.HOME_URL}/select_service`);
+  }
+  else {
+    response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
+    response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
+  }
+
 
   res.type("text/xml");
   res.send(response.toString());
