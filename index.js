@@ -15,6 +15,7 @@ app.use(bodyParser.json());
 
 const sessions = {}; // In-memory sessions
 let inputTries = 0;
+let speechTries = 0;
 
 // ✅ Dialogflow helper
 async function getDialogflowToken() {
@@ -140,6 +141,7 @@ app.post("/select_service", (req, res) => {
     response.redirect(`${process.env.HOME_URL}/select_service`);
   }
   else {
+    inputTries = 0;
     response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
     response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
   }
@@ -177,7 +179,7 @@ app.post("/process_speech", async (req, res) => {
   const session = sessions[caller] || (sessions[caller] = { phone: caller });
 
   // Track how many retries this caller has had
-  session.retries = session.retries || 0;
+  // session.retries = session.retries || 0;
 
   // Agent override
   if (dtmf === "0") {
@@ -187,31 +189,31 @@ app.post("/process_speech", async (req, res) => {
     return res.send(response.toString());
   }
 
-  // Silence handling
-  if (!userSpeech.trim()) {
-    if (session.retries >= 1) {
-      // After first retry → send to agent
-      const response = new twiml.VoiceResponse();
-      response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
-      response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
-      res.type("text/xml");
-      return res.send(response.toString());
-    } else {
-      // First time → retry the gather
-      session.retries++;
-      const response = new twiml.VoiceResponse();
-      response.say("I didn’t hear you. Could you please repeat that?");
-      response.gather({
-        input: "speech dtmf",
-        numDigits: 1,
-        action: `${process.env.HOME_URL}/process_speech`,
-        speechTimeout: "auto",
-        timeout: 6,
-      });
-      res.type("text/xml");
-      return res.send(response.toString());
-    }
-  }
+  // // Silence handling
+  // if (!userSpeech.trim()) {
+  //   if (session.retries >= 1) {
+  //     // After first retry → send to agent
+  //     const response = new twiml.VoiceResponse();
+  //     response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
+  //     response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
+  //     res.type("text/xml");
+  //     return res.send(response.toString());
+  //   } else {
+  //     // First time → retry the gather
+  //     session.retries++;
+  //     const response = new twiml.VoiceResponse();
+  //     response.say("I didn’t hear you. Could you please repeat that?");
+  //     response.gather({
+  //       input: "speech dtmf",
+  //       numDigits: 1,
+  //       action: `${process.env.HOME_URL}/process_speech`,
+  //       speechTimeout: "auto",
+  //       timeout: 6,
+  //     });
+  //     res.type("text/xml");
+  //     return res.send(response.toString());
+  //   }
+  // }
 
   let botReply = "Sorry, I didn’t catch that.";
   try {
@@ -270,7 +272,7 @@ app.post("/process_speech", async (req, res) => {
   }
 
   // Reset retries on valid input
-  session.retries = 0;
+  // session.retries = 0;
 
   // Default reply + gather again
   const response = new twiml.VoiceResponse();
@@ -282,6 +284,18 @@ app.post("/process_speech", async (req, res) => {
     speechTimeout: "auto",
     timeout: 6,
   });
+
+
+  // fallback for no response
+  if (speechTries <= 2) {
+    response.redirect(`${process.env.HOME_URL}/process_speech`);
+  }
+  else {
+    speechTries = 0;
+    response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
+    response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
+  }
+
   res.type("text/xml");
   res.send(response.toString());
 });
