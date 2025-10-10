@@ -15,7 +15,6 @@ app.use(bodyParser.json());
 
 const sessions = {}; // In-memory sessions
 let inputTries = 0;
-let speechTries = 0;
 
 // ✅ Dialogflow helper
 async function getDialogflowToken() {
@@ -262,6 +261,14 @@ app.post("/process_speech", async (req, res) => {
     botReply = "Sorry, I’m having some trouble processing that.";
     session.speechTries++;
   }
+
+  if (
+    botReply.toLowerCase().includes("sorry, i didn’t catch that") ||
+    botReply.toLowerCase().includes("sorry, i didn't catch that")
+  ) {
+    session.speechTries++;
+  }
+
 
   // 🔹 Prepare next prompt
   const response = new twiml.VoiceResponse();
