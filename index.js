@@ -136,7 +136,7 @@ app.post("/select_service", (req, res) => {
   }
 
   // fallback for no response
-  if (inputTries <= 3) {
+  if (inputTries <= 2) {
     response.redirect(`${process.env.HOME_URL}/select_service`);
   }
   else {
@@ -189,7 +189,7 @@ app.post("/process_speech", async (req, res) => {
 
   // Silence handling
   if (!userSpeech.trim()) {
-    if (session.retries >= 2) {
+    if (session.retries >= 1) {
       // After first retry → send to agent
       const response = new twiml.VoiceResponse();
       response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
