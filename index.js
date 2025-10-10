@@ -178,8 +178,8 @@ app.post("/process_speech", async (req, res) => {
   const caller = req.body.From;
   const session = sessions[caller] || (sessions[caller] = { phone: caller });
 
-  // Track how many retries this caller has had
-  // session.retries = session.retries || 0;
+  // Initialize speechTries per caller
+  session.speechTries = session.speechTries || 0;
 
   // Agent override
   if (dtmf === "0") {
@@ -189,33 +189,8 @@ app.post("/process_speech", async (req, res) => {
     return res.send(response.toString());
   }
 
-  // // Silence handling
-  // if (!userSpeech.trim()) {
-  //   if (session.retries >= 1) {
-  //     // After first retry → send to agent
-  //     const response = new twiml.VoiceResponse();
-  //     response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
-  //     response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
-  //     res.type("text/xml");
-  //     return res.send(response.toString());
-  //   } else {
-  //     // First time → retry the gather
-  //     session.retries++;
-  //     const response = new twiml.VoiceResponse();
-  //     response.say("I didn’t hear you. Could you please repeat that?");
-  //     response.gather({
-  //       input: "speech dtmf",
-  //       numDigits: 1,
-  //       action: `${process.env.HOME_URL}/process_speech`,
-  //       speechTimeout: "auto",
-  //       timeout: 6,
-  //     });
-  //     res.type("text/xml");
-  //     return res.send(response.toString());
-  //   }
-  // }
-
   let botReply = "Sorry, I didn’t catch that.";
+
   try {
     const token = await getDialogflowToken();
     const dialogflowResponse = await fetch(
@@ -234,29 +209,44 @@ app.post("/process_speech", async (req, res) => {
 
     const result = await dialogflowResponse.json();
     const queryResult = result.queryResult || {};
+    const intentName = queryResult.intent?.displayName;
+    const params = queryResult.parameters || {};
+
+    // 🧠 Default bot reply
     botReply = queryResult.fulfillmentText || botReply;
 
-    switch (queryResult.intent?.displayName) {
+    switch (intentName) {
       case "GetName":
-        session.name = queryResult.parameters?.name;
-        botReply = `Thanks ${session.name}. What date, time, and address should we book for your ${session.service} cleaning?`;
+        if (params.name) {
+          session.name = params.name;
+          botReply = `Thanks ${session.name}. What date, time, and address should we book for your ${session.service} cleaning?`;
+          session.speechTries = 0; // progress made → reset counter
+        } else {
+          session.speechTries++;
+        }
         break;
 
       case "BookCleaning":
-        const params = queryResult.parameters || {};
-        session.date = params.date || null;
-        session.time = params.time || null;
-        session.address = params.address || null;
+        // extract all possible booking details
+        session.date = params.date || session.date || null;
+        session.time = params.time || session.time || null;
+        session.address = params.address || session.address || null;
 
-        if (session.name && session.date && session.time && session.address && session.service) {
+        // check completeness
+        const allFieldsPresent =
+          session.name && session.date && session.time && session.address && session.service;
+
+        if (allFieldsPresent) {
           try {
             await createCalendarEvent(session);
             botReply = `Perfect ${session.name}, your ${session.service} booking has been saved. We’ll call you soon to confirm.`;
+            session.speechTries = 0; // reset
           } catch {
             botReply = "I got your details but couldn’t save it to the calendar.";
           }
         } else {
-          botReply = "I still need the date, time, and address. Could you provide those?";
+          session.speechTries++;
+          botReply = "I still need the date, time, or address. Could you please provide that?";
         }
         break;
 
@@ -269,29 +259,28 @@ app.post("/process_speech", async (req, res) => {
     }
   } catch (err) {
     console.error("❌ Dialogflow error:", err);
+    botReply = "Sorry, I’m having some trouble processing that.";
+    session.speechTries++;
   }
 
-  // Reset retries on valid input
-  // session.retries = 0;
-
-  // Default reply + gather again
+  // 🔹 Prepare next prompt
   const response = new twiml.VoiceResponse();
-  response.say(botReply);
-  response.gather({
+  const gather = response.gather({
     input: "speech dtmf",
     numDigits: 1,
     action: `${process.env.HOME_URL}/process_speech`,
     speechTimeout: "auto",
     timeout: 6,
   });
+  gather.say(botReply);
 
-
-  // fallback for no response
-  if (speechTries <= 2) {
+  // 🔹 Retry or escalate logic
+  if (session.speechTries < 3) {
+    // Let the gather repeat if still missing info
     response.redirect(`${process.env.HOME_URL}/process_speech`);
-  }
-  else {
-    speechTries = 0;
+  } else {
+    // Escalate to live agent after 3 failed attempts
+    session.speechTries = 0;
     response.say("I’m still having trouble understanding. Let me connect you to a live agent.");
     response.redirect(`${process.env.HOME_URL}/connect_to_agent`);
   }
