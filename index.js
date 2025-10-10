@@ -14,7 +14,7 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 const sessions = {}; // In-memory sessions
-const inputTries = 0;
+let inputTries = 0;
 
 // ✅ Dialogflow helper
 async function getDialogflowToken() {
