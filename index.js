@@ -74,7 +74,7 @@ app.post("/voice", (req, res) => {
 
   const response = new twiml.VoiceResponse();
   const gather = response.gather({
-    input: "dtmf speech",
+    input: "dtmf",
     numDigits: 1,
     action: `${process.env.HOME_URL}/select_service`,
     speechTimeout: "auto",
