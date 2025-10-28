@@ -218,135 +218,36 @@ app.post("/process_speech", async (req, res) => {
       case "GetName":
         if (params.name) {
           session.name = params.name;
-          session.speechTries = 0;
-          // If we already have service, move to date; otherwise prompt for service
-          if (session.service) {
-            session.awaiting = "date";
-            botReply = `Thanks ${session.name}. What date should we book your ${session.service} cleaning for?`;
-          } else {
-            botReply = `Thanks ${session.name}. What type of cleaning would you like?`;
+          botReply = `Thanks ${session.name}. What date, time, and address should we book for your ${session.service} cleaning?`;
+          session.speechTries = 0; // progress made → reset counter
+        } else {
+          session.speechTries++;
+        }
+        break;
+
+      case "BookCleaning":
+        // extract all possible booking details
+        session.date = params.date || session.date || null;
+        session.time = params.time || session.time || null;
+        session.address = params.address || session.address || null;
+
+        // check completeness
+        const allFieldsPresent =
+          session.name && session.date && session.time && session.address && session.service;
+
+        if (allFieldsPresent) {
+          try {
+            await createCalendarEvent(session);
+            botReply = `Perfect ${session.name}, your ${session.service} booking has been saved. We’ll call you soon to confirm.`;
+            session.speechTries = 0; // reset
+          } catch {
+            botReply = "I got your details but couldn’t save it to the calendar.";
           }
         } else {
           session.speechTries++;
-          botReply = "Could I please get your name?";
+          botReply = "I still need the date, time, or address. Could you please provide that?";
         }
         break;
-
-      // If user supplies service earlier in the flow
-      case "GetServiceType":
-        if (params.service_type) {
-          session.service = params.service_type;
-          session.speechTries = 0;
-          session.awaiting = "date";
-          botReply = `Got it — a ${session.service} cleaning. What date works best for you?`;
-        } else {
-          session.speechTries++;
-          botReply = "Please tell me which cleaning service you want.";
-        }
-        break;
-
-      // User gave a date
-      case "GetDate":
-        if (params.date) {
-          session.date = params.date;
-          session.speechTries = 0;
-          // next ask time
-          session.awaiting = "time";
-          botReply = `Great — ${session.date}. What time would you prefer?`;
-        } else {
-          session.speechTries++;
-          botReply = "I didn't catch the date. What date would you like?";
-        }
-        break;
-
-      // User gave a time
-      case "GetTime":
-        if (params.time) {
-          session.time = params.time;
-          session.speechTries = 0;
-          // next ask address
-          session.awaiting = "address";
-          botReply = "Thanks. Could you give me the address for the appointment?";
-        } else {
-          session.speechTries++;
-          botReply = "I didn't catch the time. What time works best for you?";
-        }
-        break;
-
-      // User gave the address
-      case "GetAddress":
-        if (params.address) {
-          session.address = params.address;
-          session.speechTries = 0;
-          session.awaiting = null; // all collected (for now)
-          // Confirm everything before creating the calendar event
-          botReply = `Just to confirm, ${session.name}, you want a ${session.service} cleaning on ${session.date} at ${session.time} at ${session.address}. Is that correct?`;
-        } else {
-          session.speechTries++;
-          botReply = "Please tell me the full address for the cleaning.";
-        }
-        break;
-
-      // Confirm booking: yes/no flow
-      case "ConfirmBooking":
-        // Interpret user's raw speech for confirm/deny
-        if (/^\s*(yes|yeah|yep|correct|that's right|that is correct|sure)\b/i.test(userSpeech)) {
-          // Try to create calendar event
-          const allFieldsPresent =
-            session.name && session.date && session.time && session.address && session.service;
-          if (allFieldsPresent) {
-            try {
-              await createCalendarEvent(session);
-              botReply = `Perfect ${session.name}, your ${session.service} appointment is booked for ${session.date} at ${session.time}. We’ll call you soon to confirm.`;
-              session.speechTries = 0;
-              session.awaiting = null;
-            } catch (e) {
-              console.error("Calendar save error:", e);
-              botReply = "I got your details but couldn’t save them to the calendar.";
-            }
-          } else {
-            // Missing something — ask for the next missing field
-            const missingNow = nextMissing();
-            session.awaiting = missingNow;
-            session.speechTries++;
-            botReply = missingNow
-              ? `Okay — I still need the ${missingNow}. Could you provide the ${missingNow}?`
-              : "I’m missing some details. Could you repeat the date, time, or address?";
-          }
-        } else if (/^\s*(no|nah|nope|change|incorrect|wrong)\b/i.test(userSpeech)) {
-          // Let user correct — ask which field to change (date/time/address)
-          session.speechTries = 0;
-          session.awaiting = "date"; // default to date first; you can tune this
-          botReply = "No problem — which part would you like to change? (date, time, or address)";
-        } else {
-          session.speechTries++;
-          botReply = "Please say yes to confirm or no to make changes.";
-        }
-        break;
-
-      // case "BookCleaning":
-      //   // extract all possible booking details
-      //   session.date = params.date || session.date || null;
-      //   session.time = params.time || session.time || null;
-      //   session.address = params.address || session.address || null;
-
-      //   // check completeness
-      //   const allFieldsPresent =
-      //     session.name && session.date && session.time && session.address && session.service;
-
-      //   if (allFieldsPresent) {
-      //     try {
-      //       await createCalendarEvent(session);
-      //       botReply = `Perfect ${session.name}, your ${session.service} booking has been saved. We’ll call you soon to confirm.`;
-      //       session.speechTries = 0; // reset
-      //     } catch {
-      //       botReply = "I got your details but couldn’t save it to the calendar.";
-      //     }
-      //   } else {
-      //     session.speechTries++;
-      //     botReply = "I still need the date, time, or address. Could you please provide that?";
-      //   }
-      //   break;
 
       case "Closure":
         const closureResponse = new twiml.VoiceResponse();
