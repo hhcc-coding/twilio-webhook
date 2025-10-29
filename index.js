@@ -214,6 +214,40 @@ app.post("/process_speech", async (req, res) => {
     // 🧠 Default bot reply
     botReply = queryResult.fulfillmentText || botReply;
 
+    function nextMissing() {
+      if (!session.date) return "date";
+      if (!session.time) return "time";
+      if (!session.address) return "address";
+      return null;
+    }
+
+    function formatDateForSpeech(dateStr) {
+      try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric"
+        });
+      } catch {
+        return dateStr;
+      }
+    }
+
+    function formatTimeForSpeech(timeStr) {
+      try {
+        const date = new Date(timeStr);
+        return date.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit"
+        });
+      } catch {
+        return timeStr;
+      }
+    }
+
+
+
     // Start of switch statement
     switch (intentName) {
       case "GetName":
@@ -253,7 +287,8 @@ app.post("/process_speech", async (req, res) => {
           session.speechTries = 0;
           // next ask time
           session.awaiting = "time";
-          botReply = `Great — ${session.date}. What time would you prefer?`;
+          const spokenDate = formatDateForSpeech(session.date);
+          botReply = `Great — ${spokenDate}. What time would you prefer?`;
         } else {
           session.speechTries++;
           botReply = "I didn't catch the date. What date would you like?";
@@ -267,7 +302,8 @@ app.post("/process_speech", async (req, res) => {
           session.speechTries = 0;
           // next ask address
           session.awaiting = "address";
-          botReply = "Thanks. Could you give me the address for the appointment?";
+          const spokenTime = formatTimeForSpeech(session.time);
+          botReply = `Thanks. We'll plan for ${spokenTime}. Could you give me the address for the appointment?`;
         } else {
           session.speechTries++;
           botReply = "I didn't catch the time. What time works best for you?";
@@ -281,7 +317,10 @@ app.post("/process_speech", async (req, res) => {
           session.speechTries = 0;
           session.awaiting = null; // all collected (for now)
           // Confirm everything before creating the calendar event
-          botReply = `Just to confirm, ${session.name}, you want a ${session.service} cleaning on ${session.date} at ${session.time} at ${session.address}. Is that correct?`;
+          const spokenDate = formatDateForSpeech(session.date);
+          const spokenTime = formatTimeForSpeech(session.time);
+          botReply = `Just to confirm, ${session.name}, you want a ${session.service} cleaning on ${spokenDate} at ${spokenTime} at ${session.address}. Is that correct?`;
+
         } else {
           session.speechTries++;
           botReply = "Please tell me the full address for the cleaning.";
@@ -325,33 +364,9 @@ app.post("/process_speech", async (req, res) => {
         }
         break;
 
-      // case "BookCleaning":
-      //   // extract all possible booking details
-      //   session.date = params.date || session.date || null;
-      //   session.time = params.time || session.time || null;
-      //   session.address = params.address || session.address || null;
-
-      //   // check completeness
-      //   const allFieldsPresent =
-      //     session.name && session.date && session.time && session.address && session.service;
-
-      //   if (allFieldsPresent) {
-      //     try {
-      //       await createCalendarEvent(session);
-      //       botReply = `Perfect ${session.name}, your ${session.service} booking has been saved. We’ll call you soon to confirm.`;
-      //       session.speechTries = 0; // reset
-      //     } catch {
-      //       botReply = "I got your details but couldn’t save it to the calendar.";
-      //     }
-      //   } else {
-      //     session.speechTries++;
-      //     botReply = "I still need the date, time, or address. Could you please provide that?";
-      //   }
-      //   break;
-
       case "Closure":
         const closureResponse = new twiml.VoiceResponse();
-        closureResponse.say("Thank you for calling Hilton Head Cleaning Company. Goodbye!");
+        closureResponse.say("Thank you for calling Hilton Head Cleaning Company. Goodbye!  ");
         closureResponse.hangup();
         res.type("text/xml");
         return res.send(closureResponse.toString());
