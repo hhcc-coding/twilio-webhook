@@ -214,6 +214,7 @@ app.post("/process_speech", async (req, res) => {
     // 🧠 Default bot reply
     botReply = queryResult.fulfillmentText || botReply;
 
+    // Start of switch statement
     switch (intentName) {
       case "GetName":
         if (params.name) {
