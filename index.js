@@ -319,7 +319,7 @@ app.post("/process_speech", async (req, res) => {
           // Confirm everything before creating the calendar event
           const spokenDate = formatDateForSpeech(session.date);
           const spokenTime = formatTimeForSpeech(session.time);
-          botReply = `Just to confirm, ${session.name}, you want a ${session.service} cleaning on ${spokenDate} at ${spokenTime} at ${session.address}. Is that correct?`;
+          botReply = `Got it! Just to confirm, ${session.name}, you want a ${session.service} cleaning on ${spokenDate} at ${spokenTime} at ${session.address}. Is that correct?`;
 
         } else {
           session.speechTries++;
