@@ -319,7 +319,7 @@ app.post("/process_speech", async (req, res) => {
           // Confirm everything before creating the calendar event
           const spokenDate = formatDateForSpeech(session.date);
           const spokenTime = formatTimeForSpeech(session.time);
-          botReply = `Got it! Just to confirm, ${session.name}, you want a ${session.service} cleaning on ${spokenDate} at ${spokenTime} at ${session.address}. Is that correct?`;
+          botReply = `Got it. Just to confirm, ${session.name}, you want a ${session.service} cleaning on ${spokenDate} at ${spokenTime} at ${session.address}. Is that correct?`;
 
         } else {
           session.speechTries++;
@@ -337,7 +337,9 @@ app.post("/process_speech", async (req, res) => {
           if (allFieldsPresent) {
             try {
               await createCalendarEvent(session);
-              botReply = `Perfect ${session.name}, your ${session.service} appointment is booked for ${session.date} at ${session.time}. We’ll call you soon to confirm.`;
+              const spokenDate = formatDateForSpeech(session.date);
+              const spokenTime = formatTimeForSpeech(session.time);
+              botReply = `Perfect ${session.name}, your ${session.service} appointment is booked for ${spokenDate} at ${spokenTime}. We’ll call you soon to confirm.`;
               session.speechTries = 0;
               session.awaiting = null;
             } catch (e) {
