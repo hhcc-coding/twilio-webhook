@@ -236,8 +236,21 @@ app.post("/process_speech", async (req, res) => {
 
     function formatTimeForSpeech(timeStr) {
       try {
-        const date = new Date(timeStr);
-        return date.toLocaleTimeString("en-US", {
+        // Split into parts like "HH:mm:ss"
+        const [hours, minutes] = timeStr.split(":").map(Number);
+        if (isNaN(hours)) return timeStr;
+
+        // Build a local Date with today's date but that time
+        const now = new Date();
+        const local = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          hours,
+          minutes
+        );
+
+        return local.toLocaleTimeString("en-US", {
           hour: "numeric",
           minute: "2-digit"
         });
